@@ -1,0 +1,51 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip в корень
+        run: |
+          ZIP=$(ls *.zip | head -n1)
+          echo "Архив: $ZIP"
+          rm -rf _unz && mkdir _unz
+          unzip -o -q "$ZIP" -d _unz
+          rm -rf _unz/__MACOSX
+          # если внутри одна папка — поднимаем её содержимое в корень
+          if [ "$(ls -A _unz | wc -l)" = "1" ] && [ -d _unz/* ]; then
+            cp -a _unz/*/. .
+          else
+            cp -a _unz/. .
+          fi
+          rm -rf _unz
+          ls -la
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: Сборка APK
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            gradle assembleDebug --no-daemon --stacktrace
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: "**/build/outputs/apk/debug/*.apk"
